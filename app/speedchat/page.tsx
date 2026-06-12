@@ -49,7 +49,12 @@ export default function SpeedChatPage() {
       snapshot.docs.forEach((docSnap) => {
         const data = docSnap.data();
 
-        if (data.users.includes(currentUser.uid)) {
+        if (
+          Array.isArray(data.users) &&
+          data.users.includes(currentUser.uid)
+        ) {
+          console.log("MATCH FOUND");
+
           setSearching(false);
           setStatus("Match Found!");
 
@@ -61,12 +66,18 @@ export default function SpeedChatPage() {
     return () => unsubscribe();
   }, [currentUser, router]);
 
-  // START CHAT
   const handleStartChat = async () => {
     if (!currentUser) return;
 
     setLoading(true);
+
+    // DEBUG
+    console.log("START CHAT CLICKED");
+    alert("TEST");
+
     setSearching(true);
+    console.log("SEARCHING = TRUE");
+
     setStatus("Looking for someone...");
 
     const queueSnapshot = await getDocs(collection(db, "queue"));
@@ -75,8 +86,9 @@ export default function SpeedChatPage() {
       (docSnap) => docSnap.id !== currentUser.uid
     );
 
-    // MATCH FOUND
     if (usersInQueue.length > 0) {
+      console.log("MATCHING USER");
+
       const matchedUser = usersInQueue[0];
 
       const roomId = crypto.randomUUID();
@@ -89,21 +101,34 @@ export default function SpeedChatPage() {
       await deleteDoc(doc(db, "queue", matchedUser.id));
       await deleteDoc(doc(db, "queue", currentUser.uid));
     } else {
-      // ENTER QUEUE
+      console.log("NO USERS FOUND - ENTERING QUEUE");
+
       await setDoc(doc(db, "queue", currentUser.uid), {
         uid: currentUser.uid,
         email: currentUser.email,
         joinedAt: serverTimestamp(),
       });
+
+      setStatus("Waiting for another user...");
     }
 
     setLoading(false);
   };
 
+  const handleCancelSearch = async () => {
+    if (!currentUser) return;
+
+    console.log("CANCEL SEARCH");
+
+    await deleteDoc(doc(db, "queue", currentUser.uid));
+
+    setSearching(false);
+    setStatus("Ready to meet someone.");
+  };
+
   return (
     <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
       <div className="w-full max-w-2xl bg-[#050510] border border-gray-800 rounded-3xl p-10 text-center shadow-2xl">
-
         <h1 className="text-6xl font-bold mb-6">
           Surplex
         </h1>
@@ -122,7 +147,6 @@ export default function SpeedChatPage() {
           </button>
         ) : (
           <div className="space-y-8">
-
             <div>
               <h2 className="text-4xl font-bold text-pink-500 animate-pulse">
                 🔍 Searching...
@@ -133,17 +157,18 @@ export default function SpeedChatPage() {
               </p>
             </div>
 
-            <div className="w-full h-3 rounded-full bg-gray-800 overflow-hidden">
+            <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
               <div className="h-full w-2/3 bg-pink-500 animate-pulse"></div>
             </div>
 
-            <p className="text-gray-500">
-              Please wait while we find another user...
-            </p>
-
+            <button
+              onClick={handleCancelSearch}
+              className="w-full rounded-2xl bg-red-500 hover:bg-red-600 transition py-4 text-xl font-bold"
+            >
+              Cancel Search
+            </button>
           </div>
         )}
-
       </div>
     </main>
   );
