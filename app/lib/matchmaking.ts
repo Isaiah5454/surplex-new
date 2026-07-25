@@ -1,50 +1,60 @@
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
+import { User } from "firebase/auth";
 
-import { db } from "./firebase";
+// ------------------------------
+// Join Queue
+// ------------------------------
+export async function joinQueue(user: User): Promise<void> {
+  console.log(`${user.uid} joined the queue`);
+}
 
-export async function findMatch(user: any) {
-  if (!user) return null;
+// ------------------------------
+// Leave Queue
+// ------------------------------
+export async function leaveQueue(uid: string): Promise<void> {
+  console.log(`${uid} left the queue`);
+}
 
-  // Get everyone currently waiting
-  const queueSnapshot = await getDocs(collection(db, "queue"));
+// ------------------------------
+// Find Waiting User
+// ------------------------------
+async function findWaitingUser(): Promise<string | null> {
+  return null;
+}
 
-  // Remove yourself from the list
-  const waitingUsers = queueSnapshot.docs.filter(
-    (docSnap) => docSnap.id !== user.uid
-  );
+// ------------------------------
+// Create Room
+// ------------------------------
+async function createRoom(
+  user1: string,
+  user2: string
+): Promise<string> {
+  console.log(`Creating room for ${user1} and ${user2}`);
 
-  // Nobody is waiting
-  if (waitingUsers.length === 0) {
-    await setDoc(doc(db, "queue", user.uid), {
-      uid: user.uid,
-      email: user.email,
-      joinedAt: serverTimestamp(),
-    });
+  return crypto.randomUUID();
+}
 
+// ------------------------------
+// Match Users
+// ------------------------------
+async function matchUsers(
+  user: User
+): Promise<string | null> {
+  await joinQueue(user);
+
+  const partner = await findWaitingUser();
+
+  if (!partner) {
     return null;
   }
 
-  // Match with the first waiting user
-  const partner = waitingUsers[0];
+  return await createRoom(user.uid, partner);
+}
 
-  // Create room
-  const roomId = crypto.randomUUID();
-
-  await setDoc(doc(db, "rooms", roomId), {
-    users: [user.uid, partner.id],
-    createdAt: serverTimestamp(),
-  });
-
-  // Remove both users from queue
-  await deleteDoc(doc(db, "queue", partner.id));
-  await deleteDoc(doc(db, "queue", user.uid));
-
-  return roomId;
+// ------------------------------
+// Public API
+// ------------------------------
+export async function findMatch(
+  user: User
+): Promise<string | null> {
+  return await matchUsers(user);
 }
