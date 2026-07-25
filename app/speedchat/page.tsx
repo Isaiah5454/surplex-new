@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { User, onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
 
-import { auth, db } from "../lib/firebase";
-import { findMatch, leaveQueue } from "../lib/matchmaking";
+import { auth } from "../lib/firebase";
+import { findMatch } from "../lib/matchmaking";
+import { joinQueue, leaveQueue, watchQueue } from "../lib/queue";
 
 export default function SpeedChatPage() {
   const router = useRouter();
@@ -17,7 +17,6 @@ export default function SpeedChatPage() {
   const [searching, setSearching] = useState(false);
   const [status, setStatus] = useState("Ready to meet someone.");
 
-  // Listen for authentication
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -31,42 +30,37 @@ export default function SpeedChatPage() {
     return unsubscribe;
   }, [router]);
 
-  // Listen for room assignment
-  useEffect(() => {
+  async function handleStartChat() {
     if (!currentUser) return;
 
-    const unsubscribe = onSnapshot(
-      doc(db, "queue", currentUser.uid),
-      (snapshot) => {
-        if (!snapshot.exists()) return;
+    try {
+      setLoading(true);
+      setSearching(true);
+      setStatus("Joining queue...");
 
-        const data = snapshot.data();
+      await joinQueue(currentUser);
+
+      setStatus("Looking for someone...");
+
+      watchQueue(currentUser.uid, (data) => {
+        if (!data) return;
 
         if (data.roomId) {
           router.push(`/room/${data.roomId}`);
         }
-      }
-    );
+      });
 
-    return unsubscribe;
-  }, [currentUser, router]);
+      await findMatch(currentUser);
 
-  async function handleStartChat() {
-    if (!currentUser) return;
+      setLoading(false);
+      setStatus("Waiting for another user...");
+    } catch (error) {
+      console.error(error);
 
-    setLoading(true);
-    setSearching(true);
-    setStatus("Looking for someone...");
-
-    const roomId = await findMatch(currentUser);
-
-    if (roomId) {
-      router.push(`/room/${roomId}`);
-      return;
+      setSearching(false);
+      setLoading(false);
+      setStatus("Something went wrong.");
     }
-
-    setLoading(false);
-    setStatus("Waiting for another user...");
   }
 
   async function handleCancel() {

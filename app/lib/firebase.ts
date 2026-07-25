@@ -1,104 +1,20 @@
-import { User } from "firebase/auth";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  serverTimestamp,
-  setDoc,
-  where,
-  updateDoc,
-} from "firebase/firestore";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-import { db } from "./firebase";
+const firebaseConfig = {
+  apiKey: "AIzaSyBzyz0_tTDQ63KQd2hHnFW3FyohKmTKcWg",
+  authDomain: "surplex-experience.firebaseapp.com",
+  projectId: "surplex-experience",
+  storageBucket: "surplex-experience.firebasestorage.app",
+  messagingSenderId: "1001898107127",
+  appId: "1:1001898107127:web:67a5ce939ab314d9bd33f2",
+};
 
-// ------------------------------
-// Join the matchmaking queue
-// ------------------------------
-export async function joinQueue(user: User): Promise<void> {
-  await setDoc(doc(db, "queue", user.uid), {
-    uid: user.uid,
-    status: "WAITING",
-    roomId: null,
-    joinedAt: serverTimestamp(),
-  });
-}
+const app =
+  getApps().length === 0
+    ? initializeApp(firebaseConfig)
+    : getApp();
 
-// ------------------------------
-// Leave the matchmaking queue
-// ------------------------------
-export async function leaveQueue(uid: string): Promise<void> {
-  await deleteDoc(doc(db, "queue", uid));
-}
-
-// ------------------------------
-// Find someone waiting
-// ------------------------------
-async function findWaitingUser(user: User) {
-  const waitingQuery = query(
-    collection(db, "queue"),
-    where("status", "==", "WAITING")
-  );
-
-  const snapshot = await getDocs(waitingQuery);
-
-  return snapshot.docs.find((doc) => doc.id !== user.uid) ?? null;
-}
-
-// ------------------------------
-// Create room
-// ------------------------------
-async function createRoom(user1: string, user2: string): Promise<string> {
-  const roomRef = doc(collection(db, "rooms"));
-
-  await setDoc(roomRef, {
-    users: [user1, user2],
-    status: "ACTIVE",
-    createdAt: serverTimestamp(),
-  });
-
-  return roomRef.id;
-}
-
-// ------------------------------
-// Main matchmaking engine
-// ------------------------------
-async function matchUsers(user: User): Promise<string | null> {
-  // Put current user in queue
-  await joinQueue(user);
-
-  // Look for another waiting user
-  const partner = await findWaitingUser(user);
-
-  // Nobody yet
-  if (!partner) {
-    return null;
-  }
-
-  // Create room
-  const roomId = await createRoom(user.uid, partner.id);
-
-  // Update partner
-  await updateDoc(doc(db, "queue", partner.id), {
-    status: "MATCHED",
-    roomId,
-  });
-
-  // Update yourself
-  await updateDoc(doc(db, "queue", user.uid), {
-    status: "MATCHED",
-    roomId,
-  });
-
-  return roomId;
-}
-
-// ------------------------------
-// Public function
-// ------------------------------
-export async function findMatch(
-  user: User
-): Promise<string | null> {
-  return await matchUsers(user);
-}
+export const auth = getAuth(app);
+export const db = getFirestore(app);
